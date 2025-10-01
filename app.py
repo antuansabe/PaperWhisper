@@ -111,40 +111,10 @@ Respuesta:"""
 def main():
     """Función principal de la aplicación Streamlit"""
 
-    # Header con imagen adaptable al tema
-    st.markdown("""
-        <style>
-        /* Mostrar logo oscuro por defecto (modo día) */
-        .logo-light {
-            display: block;
-        }
-        .logo-dark {
-            display: none;
-        }
-
-        /* En modo oscuro, invertir */
-        @media (prefers-color-scheme: dark) {
-            .logo-light {
-                display: none;
-            }
-            .logo-dark {
-                display: block;
-            }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
+    # Header con logo
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        # Logo para modo día
-        st.markdown('<div class="logo-light">', unsafe_allow_html=True)
-        st.image("ppaper-dia.png", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # Logo para modo noche
-        st.markdown('<div class="logo-dark">', unsafe_allow_html=True)
         st.image("ppaper.png", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
