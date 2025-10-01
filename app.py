@@ -111,17 +111,12 @@ Respuesta:"""
 def main():
     """Función principal de la aplicación Streamlit"""
 
-    # Header con diseño mejorado
-    st.markdown("""
-        <div style='text-align: center; padding: 1rem 0;'>
-            <h1 style='color: #FF4B4B; font-size: 3rem; margin-bottom: 0;'>
-                📄 PaperWhisper
-            </h1>
-            <p style='font-size: 1.3rem; color: #666; margin-top: 0.5rem;'>
-                Conversa con tus documentos PDF usando IA
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
+    # Header con imagen
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("ppaper.png", use_container_width=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
     # Sidebar - Configuración
