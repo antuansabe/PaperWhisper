@@ -111,44 +111,53 @@ Respuesta:"""
 def main():
     """Función principal de la aplicación Streamlit"""
 
-    # Header
-    st.title("📄 PaperWhisper")
-    st.markdown("### Conversa con tus documentos PDF usando RAG + Mistral AI")
+    # Header con diseño mejorado
+    st.markdown("""
+        <div style='text-align: center; padding: 1rem 0;'>
+            <h1 style='color: #FF4B4B; font-size: 3rem; margin-bottom: 0;'>
+                📄 PaperWhisper
+            </h1>
+            <p style='font-size: 1.3rem; color: #666; margin-top: 0.5rem;'>
+                Conversa con tus documentos PDF usando IA
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
 
     # Sidebar - Configuración
     with st.sidebar:
-        st.header("⚙️ Configuración")
+        st.markdown("### ⚙️ Configuración")
+        st.markdown("")
 
-        # Modelo de embeddings
-        embeddings_model = st.text_input(
-            "Modelo de embeddings (Hugging Face)",
-            value=os.getenv("EMBEDDINGS_MODEL", DEFAULT_MODEL_NAME),
-            help="Modelo de sentence-transformers para generar embeddings"
-        )
+        # Sección de modelos
+        with st.expander("🤖 Modelos de IA", expanded=True):
+            # Modelo de Mistral
+            mistral_model = st.selectbox(
+                "Modelo de IA",
+                options=[
+                    "mistral-small-latest",
+                    "mistral-medium-latest",
+                    "mistral-large-latest",
+                    "open-mistral-7b",
+                    "open-mixtral-8x7b"
+                ],
+                index=0,
+                help="Modelo de Mistral AI a usar para generar respuestas"
+            )
 
-        # Modelo de Mistral
-        mistral_model = st.selectbox(
-            "Modelo de Mistral",
-            options=[
-                "mistral-small-latest",
-                "mistral-medium-latest",
-                "mistral-large-latest",
-                "open-mistral-7b",
-                "open-mixtral-8x7b"
-            ],
-            index=0,
-            help="Modelo de Mistral AI a usar para generar respuestas"
-        )
+            # Modelo de embeddings (oculto por defecto)
+            embeddings_model = os.getenv("EMBEDDINGS_MODEL", DEFAULT_MODEL_NAME)
 
-        # Top-K chunks
-        top_k = st.slider(
-            "Chunks relevantes (k)",
-            min_value=1,
-            max_value=10,
-            value=4,
-            help="Número de fragmentos a recuperar del documento"
-        )
+        # Sección de parámetros
+        with st.expander("🎛️ Parámetros", expanded=True):
+            # Top-K chunks
+            top_k = st.slider(
+                "Fragmentos a recuperar",
+                min_value=1,
+                max_value=10,
+                value=4,
+                help="Número de fragmentos relevantes del documento"
+            )
 
         st.markdown("---")
 
@@ -167,28 +176,48 @@ def main():
                 st.info("ℹ️ No hay índice para eliminar")
 
         st.markdown("---")
-        st.markdown("### 📊 Estado")
+
+        # Estado del sistema con mejor diseño
+        st.markdown("### 📊 Estado del Sistema")
+
+        # API Key status
+        api_key = os.getenv("MISTRAL_API_KEY")
+        if api_key and api_key != "your_mistral_api_key_here":
+            st.markdown("🟢 **IA:** Conectada")
+        else:
+            st.markdown("🔴 **IA:** Desconectada")
+            st.caption("Configura `MISTRAL_API_KEY` en `.env`")
+
+        # Índice status
         if os.path.exists(INDEX_PATH):
-            st.success("✅ Índice FAISS presente")
+            st.markdown("🟢 **Índice:** Listo")
         else:
-            st.info("ℹ️ No hay índice guardado")
+            st.markdown("⚪ **Índice:** Sin crear")
 
-        # Verificar API key
-        if os.getenv("MISTRAL_API_KEY"):
-            st.success("✅ API Key de Mistral configurada")
-        else:
-            st.warning("⚠️ API Key de Mistral no encontrada")
+        st.markdown("")
 
-    # Main content
-    col1, col2 = st.columns([1, 1])
+        # Info adicional
+        with st.expander("ℹ️ Acerca de"):
+            st.markdown("""
+                **PaperWhisper** v1.0
 
-    with col1:
-        st.subheader("📤 Cargar documento")
-        uploaded_file = st.file_uploader(
-            "Sube un archivo PDF",
-            type=["pdf"],
-            help="El PDF se procesará y se creará un índice para búsquedas"
-        )
+                Conversa con tus documentos PDF usando:
+                - 🤖 Mistral AI
+                - 🔍 FAISS
+                - 🧬 HuggingFace
+
+                [GitHub](https://github.com/antuansabe/PaperWhisper) • [Docs](./QUICKSTART.md)
+            """)
+
+    # Main content con diseño mejorado
+    st.markdown("### 📤 Paso 1: Sube tu documento")
+
+    uploaded_file = st.file_uploader(
+        "Arrastra un PDF aquí o haz clic para seleccionar",
+        type=["pdf"],
+        help="El PDF se procesará automáticamente para búsquedas",
+        label_visibility="collapsed"
+    )
 
     # Procesar PDF si se sube
     db = None
@@ -200,40 +229,41 @@ def main():
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        # Ingerir PDF al índice
-        with st.spinner("🔄 Procesando PDF y construyendo índice FAISS..."):
+        # Ingerir PDF al índice con mejor feedback
+        with st.spinner("🔄 Procesando tu documento..."):
             try:
                 db = ingest_pdf_to_index(pdf_path, model_name=embeddings_model)
-                st.success(f"✅ Documento '{uploaded_file.name}' procesado exitosamente")
+                st.success(f"✅ **{uploaded_file.name}** listo para consultas")
             except Exception as e:
                 st.error(f"❌ Error procesando PDF: {e}")
                 return
 
-        # Vista previa del documento
-        with col2:
-            st.subheader("👁️ Vista previa")
+        # Vista previa del documento en un expander
+        with st.expander("👁️ Ver vista previa del documento", expanded=False):
             try:
                 preview_text = read_pdf(pdf_path)[:1500]
                 st.text_area(
-                    "Primeros caracteres del documento",
+                    "Primeros 1500 caracteres",
                     value=preview_text,
-                    height=200,
-                    disabled=True
+                    height=250,
+                    disabled=True,
+                    label_visibility="collapsed"
                 )
-                st.caption(f"📊 Total: {len(read_pdf(pdf_path))} caracteres")
+                total_chars = len(read_pdf(pdf_path))
+                st.caption(f"📊 Documento completo: {total_chars:,} caracteres")
             except Exception as e:
                 st.warning(f"⚠️ No se pudo generar vista previa: {e}")
 
-    # Separador
-    st.markdown("---")
+        st.markdown("---")
 
-    # Sección de consulta
-    st.subheader("💬 Haz una pregunta")
+    # Sección de consulta con mejor diseño
+    st.markdown("### 💬 Paso 2: Haz tu pregunta")
 
     query = st.text_input(
-        "Escribe tu pregunta sobre el documento",
+        "Pregunta",
         placeholder="Ej: ¿Cuál es el tema principal del documento?",
-        help="La pregunta se buscará en el índice semántico del PDF"
+        help="Pregunta en lenguaje natural sobre el contenido del PDF",
+        label_visibility="collapsed"
     )
 
     # Inicializar LLM
@@ -257,34 +287,53 @@ def main():
                 st.error(f"❌ Error en búsqueda semántica: {e}")
                 return
 
-        # Mostrar contexto recuperado
-        st.markdown("### 📚 Contexto recuperado")
-        st.caption(f"Los {len(results)} fragmentos más relevantes del documento:")
-
-        for i, (chunk, score) in enumerate(results, start=1):
-            with st.expander(f"📄 Fragmento #{i} — Similaridad: {score:.4f}"):
-                st.write(chunk)
-
-        # Generar respuesta con Mistral (si está disponible)
+        # Generar respuesta con Mistral primero (si está disponible)
         if llm is None:
-            st.info("ℹ️ Configura `MISTRAL_API_KEY` en `.env` para habilitar generación de respuestas con IA")
-            return
+            st.warning("⚠️ Configura `MISTRAL_API_KEY` en `.env` para habilitar respuestas con IA")
+            st.info("📚 Mostrando solo búsqueda semántica:")
+        else:
+            st.markdown("### 🤖 Respuesta")
 
-        st.markdown("### 🤖 Respuesta generada por Mistral")
+            with st.spinner("🤖 Generando respuesta..."):
+                try:
+                    answer = generate_answer_with_mistral(llm, query, results)
 
-        with st.spinner("🤖 Generando respuesta con Mistral AI..."):
-            try:
-                answer = generate_answer_with_mistral(llm, query, results)
-                st.markdown(answer)
-            except Exception as e:
-                st.error(f"❌ Error generando respuesta: {e}")
+                    # Mostrar respuesta en un contenedor destacado
+                    st.markdown(f"""
+                        <div style='background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #FF4B4B;'>
+                            {answer}
+                        </div>
+                    """, unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"❌ Error generando respuesta: {e}")
 
-    # Footer
+        # Mostrar contexto recuperado en expander
+        st.markdown("")
+        with st.expander(f"📚 Ver fragmentos relevantes ({len(results)} encontrados)", expanded=False):
+            st.caption("Los fragmentos más similares a tu pregunta:")
+            for i, (chunk, score) in enumerate(results, start=1):
+                similarity_pct = (1 - score) * 100  # Convertir distancia a porcentaje
+                st.markdown(f"**Fragmento {i}** — Relevancia: {similarity_pct:.1f}%")
+                st.text(chunk)
+                st.markdown("---")
+
+    # Footer mejorado
+    st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown(
         """
-        <div style='text-align: center; color: gray;'>
-            <p>Hecho con ❤️ usando Streamlit, LangChain, FAISS y Mistral AI</p>
+        <div style='text-align: center; padding: 1rem 0;'>
+            <p style='color: #666; font-size: 0.9rem;'>
+                Hecho con ❤️ usando <strong>Mistral AI</strong>, <strong>LangChain</strong> y <strong>FAISS</strong>
+            </p>
+            <p style='color: #999; font-size: 0.8rem; margin-top: 0.5rem;'>
+                <a href='https://github.com/antuansabe/PaperWhisper' target='_blank' style='color: #FF4B4B; text-decoration: none;'>
+                    ⭐ GitHub
+                </a> •
+                <a href='./QUICKSTART.md' style='color: #FF4B4B; text-decoration: none;'>
+                    📖 Docs
+                </a>
+            </p>
         </div>
         """,
         unsafe_allow_html=True
