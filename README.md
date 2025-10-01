@@ -78,3 +78,61 @@
 git clone https://github.com/tuusuario/PaperWhisper.git
 cd PaperWhisper
 pip install -r requirements.txt
+---
+
+## 📦 Instalación (actualizado)
+
+```bash
+git clone https://github.com/antuansabe/PaperWhisper.git
+cd PaperWhisper
+python3 -m venv .venv
+source .venv/bin/activate  # en Windows: .venv\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Configurar variables de entorno
+cp .env.example .env
+# Edita .env y agrega tu OPENAI_API_KEY si vas a usar generación
+
+# Ejecutar la app
+streamlit run app.py
+```
+
+### Variables de entorno
+
+Edita `.env` (basado en `.env.example`):
+
+```bash
+OPENAI_API_KEY=sk-...
+EMBEDDINGS_MODEL=sentence-transformers/all-MiniLM-L6-v2
+DATA_DIR=./data
+OPENAI_MODEL=gpt-3.5-turbo
+```
+
+### Uso (Fase 1)
+
+1. Inicia la app con `streamlit run app.py`.
+2. En la interfaz, sube un archivo PDF.
+3. El sistema creará o cargará un índice FAISS local en `data/faiss_index/`.
+4. Escribe una pregunta; se mostrarán los chunks más relevantes y, si configuraste `OPENAI_API_KEY`, se generará una respuesta.
+
+### Notas técnicas
+
+- Embeddings: por defecto `sentence-transformers/all-MiniLM-L6-v2` (Hugging Face, sin clave).
+- Índice: FAISS local persistido en `data/faiss_index/`.
+- Orquestación: utilidades en `src/rag_engine.py` para lectura del PDF, chunking, embeddings y búsqueda.
+- Interfaz: `app.py` en Streamlit con vista previa del PDF, consulta y respuesta.
+
+### Estructura del proyecto (MVP)
+
+```
+PaperWhisper/
+├── app.py
+├── requirements.txt
+├── .env.example
+├── data/
+├── src/
+│   ├── __init__.py
+│   └── rag_engine.py
+└── README.md
+```
