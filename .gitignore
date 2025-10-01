@@ -1,0 +1,51 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+__MACOSX/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.*.local
+.cache/
+dist/
+build/
+.next/
+.nuxt/
+out/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.envrc
+.venv/
+venv/
+.env
+.eggs/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Editors/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Misc
+*.sqlite3
+*.db
+
