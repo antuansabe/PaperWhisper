@@ -49,3 +49,8 @@ logs/
 *.sqlite3
 *.db
 
+# PaperWhisper specific
+data/
+*.pdf
+*.pkl
+
