@@ -238,27 +238,31 @@ def ingest_pdf_to_index(
     model_name: str = DEFAULT_MODEL_NAME,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
-    force_rebuild: bool = False
+    force_rebuild: bool = False,
+    persist: bool = False
 ) -> FAISS:
     """
     Pipeline completo: lee PDF, chunking, embeddings, indexado FAISS.
-    Si el índice ya existe, lo carga (a menos que force_rebuild=True).
+
+    IMPORTANTE: Por defecto NO persiste el índice (persist=False) para evitar
+    compartir datos entre usuarios en deploy. Cada sesión crea su propio índice en memoria.
 
     Args:
         pdf_path: Ruta al archivo PDF
-        index_path: Ruta donde guardar/cargar el índice
+        index_path: Ruta donde guardar/cargar el índice (solo si persist=True)
         model_name: Modelo de embeddings a usar
         chunk_size: Tamaño de cada chunk
         chunk_overlap: Solapamiento entre chunks
         force_rebuild: Si True, reconstruye el índice aunque exista
+        persist: Si True, guarda el índice en disco (uso local). Si False, solo en memoria (deploy)
 
     Returns:
-        Índice FAISS listo para búsquedas
+        Índice FAISS listo para búsquedas (en memoria)
     """
     embeddings = generate_embeddings(model_name)
 
-    # Si existe índice y no queremos reconstruir, cargamos
-    if os.path.exists(index_path) and not force_rebuild:
+    # Solo intentar cargar índice si persist=True y existe
+    if persist and os.path.exists(index_path) and not force_rebuild:
         try:
             print("📂 Índice existente encontrado, cargando...")
             return load_index(index_path, embeddings)
@@ -271,7 +275,13 @@ def ingest_pdf_to_index(
     text = read_pdf(pdf_path)
     chunks = split_into_chunks(text, chunk_size, chunk_overlap)
     db = build_faiss_index(chunks, embeddings)
-    save_index(db, chunks, index_path)
+
+    # Solo guardar en disco si persist=True
+    if persist:
+        save_index(db, chunks, index_path)
+        print("💾 Índice guardado en disco")
+    else:
+        print("✅ Índice creado en memoria (no persistido)")
 
     print("🎉 Pipeline completado exitosamente")
     return db

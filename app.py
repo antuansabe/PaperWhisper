@@ -13,8 +13,6 @@ from langchain_mistralai import ChatMistralAI
 from src.rag_engine import (
     ingest_pdf_to_index,
     similarity_search,
-    read_pdf,
-    INDEX_PATH,
     DEFAULT_MODEL_NAME
 )
 
@@ -209,19 +207,12 @@ def main():
 
         st.markdown("---")
 
-        # Botón para limpiar índice
-        if st.button("🗑️ Limpiar índice FAISS", help="Elimina el índice guardado y fuerza reconstrucción"):
-            if os.path.exists(INDEX_PATH):
-                try:
-                    import shutil
-                    if os.path.isdir(INDEX_PATH):
-                        shutil.rmtree(INDEX_PATH)
-                    st.success("✅ Índice eliminado")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error eliminando índice: {e}")
-            else:
-                st.info("ℹ️ No hay índice para eliminar")
+        # Botón para limpiar sesión
+        if st.button("🗑️ Limpiar sesión", help="Elimina el documento actual y reinicia la sesión"):
+            st.session_state.faiss_db = None
+            st.session_state.uploaded_filename = None
+            st.success("✅ Sesión reiniciada")
+            st.rerun()
 
         st.markdown("---")
 
@@ -237,10 +228,12 @@ def main():
             st.caption("Configura `MISTRAL_API_KEY` en `.env`")
 
         # Índice status
-        if os.path.exists(INDEX_PATH):
-            st.markdown("🟢 **Índice:** Listo")
+        if st.session_state.get("faiss_db") is not None:
+            st.markdown("🟢 **Documento:** Cargado")
+            if st.session_state.get("uploaded_filename"):
+                st.caption(f"📄 {st.session_state.uploaded_filename}")
         else:
-            st.markdown("⚪ **Índice:** Sin crear")
+            st.markdown("⚪ **Documento:** Sin cargar")
 
         st.markdown("")
 
@@ -267,29 +260,68 @@ def main():
         label_visibility="collapsed"
     )
 
+    # Inicializar session_state para el índice FAISS (aislamiento por usuario)
+    if "faiss_db" not in st.session_state:
+        st.session_state.faiss_db = None
+    if "uploaded_filename" not in st.session_state:
+        st.session_state.uploaded_filename = None
+
     # Procesar PDF si se sube
     db = None
     if uploaded_file is not None:
-        # Guardar PDF temporalmente
-        pdf_path = os.path.join("data", uploaded_file.name)
-        os.makedirs("data", exist_ok=True)
+        # Si es un archivo nuevo, recrear el índice
+        if st.session_state.uploaded_filename != uploaded_file.name:
+            # Guardar PDF temporalmente con nombre único por sesión
+            import uuid
+            session_id = st.session_state.get("session_id", str(uuid.uuid4()))
+            st.session_state.session_id = session_id
 
-        with open(pdf_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            pdf_path = os.path.join("data", f"{session_id}_{uploaded_file.name}")
+            os.makedirs("data", exist_ok=True)
 
-        # Ingerir PDF al índice con mejor feedback
-        with st.spinner("🔄 Procesando tu documento..."):
-            try:
-                db = ingest_pdf_to_index(pdf_path, model_name=embeddings_model)
+            with open(pdf_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+
+            # Ingerir PDF al índice EN MEMORIA (persist=False para evitar compartir datos)
+            with st.spinner("🔄 Procesando tu documento..."):
+                try:
+                    db = ingest_pdf_to_index(
+                        pdf_path,
+                        model_name=embeddings_model,
+                        persist=False  # CRÍTICO: No persistir para aislar usuarios
+                    )
+                    st.session_state.faiss_db = db
+                    st.session_state.uploaded_filename = uploaded_file.name
+                    st.success(f"✅ **{uploaded_file.name}** listo para consultas")
+
+                    # Limpiar archivo temporal
+                    try:
+                        os.remove(pdf_path)
+                    except:
+                        pass
+                except Exception as e:
+                    st.error(f"❌ Error procesando PDF: {e}")
+                    return
+        else:
+            # Usar índice existente de la sesión
+            db = st.session_state.faiss_db
+            if db:
                 st.success(f"✅ **{uploaded_file.name}** listo para consultas")
-            except Exception as e:
-                st.error(f"❌ Error procesando PDF: {e}")
-                return
 
         # Vista previa del documento en un expander
         with st.expander("👁️ Ver vista previa del documento", expanded=False):
             try:
-                preview_text = read_pdf(pdf_path)[:1500]
+                # Leer directamente del uploaded_file buffer
+                from io import BytesIO
+                from pypdf import PdfReader
+
+                pdf_bytes = BytesIO(uploaded_file.getvalue())
+                reader = PdfReader(pdf_bytes)
+                preview_text = ""
+                for page in reader.pages[:3]:  # Primeras 3 páginas
+                    preview_text += page.extract_text()
+
+                preview_text = preview_text[:1500]
                 st.text_area(
                     "Primeros 1500 caracteres",
                     value=preview_text,
@@ -297,8 +329,14 @@ def main():
                     disabled=True,
                     label_visibility="collapsed"
                 )
-                total_chars = len(read_pdf(pdf_path))
-                st.caption(f"📊 Documento completo: {total_chars:,} caracteres")
+
+                # Contar caracteres totales
+                total_text = ""
+                pdf_bytes.seek(0)
+                reader = PdfReader(pdf_bytes)
+                for page in reader.pages:
+                    total_text += page.extract_text()
+                st.caption(f"📊 Documento completo: {len(total_text):,} caracteres")
             except Exception as e:
                 st.warning(f"⚠️ No se pudo generar vista previa: {e}")
 
