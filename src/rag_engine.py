@@ -2,11 +2,15 @@
 RAG Engine para PaperWhisper
 Módulo principal que gestiona la lectura de PDFs, chunking, embeddings,
 indexado con FAISS y búsqueda semántica.
+
+PRIVACIDAD: Este módulo procesa documentos solo en memoria sin persistencia.
 """
 
 import os
 import pickle
+import logging
 from typing import List, Tuple, Optional
+from io import BytesIO
 
 from dotenv import load_dotenv
 from pypdf import PdfReader
@@ -15,6 +19,14 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+
+# Desactivar telemetría de HuggingFace para privacidad
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "0"  # Permitir descarga inicial de modelos
+
+# Configurar logging seguro (sin datos sensibles)
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
@@ -57,15 +69,51 @@ def read_pdf(file_path: str) -> str:
                 if text:
                     pages_text.append(text)
             except Exception as e:
-                print(f"⚠️ Error extrayendo página {page_num + 1}: {e}")
+                logger.warning(f"Error extrayendo página {page_num + 1}")
                 pages_text.append("")
 
         full_text = "\n\n".join(pages_text)
-        print(f"✅ PDF leído: {len(reader.pages)} páginas, {len(full_text)} caracteres")
+        logger.info(f"PDF procesado: {len(reader.pages)} páginas")
         return full_text
 
     except Exception as e:
         raise Exception(f"Error leyendo PDF: {e}")
+
+
+def read_pdf_from_buffer(pdf_buffer: BytesIO) -> str:
+    """
+    Lee y extrae todo el texto de un PDF desde memoria (BytesIO).
+
+    PRIVACIDAD: No guarda el PDF en disco, procesa directamente desde memoria.
+
+    Args:
+        pdf_buffer: Buffer de bytes con el contenido del PDF
+
+    Returns:
+        Texto completo del PDF concatenado
+
+    Raises:
+        Exception: Si hay error al leer el PDF
+    """
+    try:
+        reader = PdfReader(pdf_buffer)
+        pages_text: List[str] = []
+
+        for page in reader.pages:
+            try:
+                text = page.extract_text()
+                if text:
+                    pages_text.append(text)
+            except Exception:
+                # No logear el error para no exponer metadata del PDF
+                pages_text.append("")
+
+        full_text = "\n\n".join(pages_text)
+        logger.info(f"PDF procesado en memoria: {len(reader.pages)} páginas")
+        return full_text
+
+    except Exception as e:
+        raise Exception(f"Error procesando PDF desde memoria: {e}")
 
 
 def split_into_chunks(
@@ -96,7 +144,7 @@ def split_into_chunks(
     )
 
     chunks = splitter.split_text(text)
-    print(f"✅ Texto dividido en {len(chunks)} chunks")
+    logger.info(f"Texto dividido en {len(chunks)} chunks")
     return chunks
 
 
@@ -111,13 +159,13 @@ def generate_embeddings(model_name: str = DEFAULT_MODEL_NAME) -> HuggingFaceEmbe
     Returns:
         Instancia de HuggingFaceEmbeddings
     """
-    print(f"🔄 Cargando modelo de embeddings: {model_name}")
+    logger.info(f"Cargando modelo de embeddings: {model_name}")
     embeddings = HuggingFaceEmbeddings(
         model_name=model_name,
         model_kwargs={'device': 'cpu'},  # Cambiar a 'cuda' si tienes GPU
         encode_kwargs={'normalize_embeddings': True}  # Normalizar para mejor similaridad coseno
     )
-    print(f"✅ Modelo de embeddings cargado")
+    logger.info("Modelo de embeddings cargado")
     return embeddings
 
 
@@ -136,7 +184,7 @@ def build_faiss_index(chunks: List[str], embeddings: HuggingFaceEmbeddings) -> F
     if not chunks:
         raise ValueError("La lista de chunks no puede estar vacía")
 
-    print(f"🔄 Construyendo índice FAISS con {len(chunks)} chunks...")
+    logger.info(f"Construyendo índice FAISS con {len(chunks)} chunks")
 
     # Crear documentos de LangChain (FAISS los necesita en este formato)
     documents = [Document(page_content=chunk) for chunk in chunks]
@@ -144,7 +192,7 @@ def build_faiss_index(chunks: List[str], embeddings: HuggingFaceEmbeddings) -> F
     # FAISS.from_documents genera embeddings automáticamente y construye el índice
     db = FAISS.from_documents(documents=documents, embedding=embeddings)
 
-    print(f"✅ Índice FAISS construido exitosamente")
+    logger.info("Índice FAISS construido exitosamente")
     return db
 
 
@@ -161,13 +209,13 @@ def save_index(db: FAISS, chunks: List[str], index_path: str = INDEX_PATH):
 
     # Guardar índice FAISS
     db.save_local(index_path)
-    print(f"💾 Índice FAISS guardado en: {index_path}")
+    logger.info(f"Índice FAISS guardado en: {index_path}")
 
     # Guardar metadata (chunks originales) por si necesitamos reconstruir
     metadata_path = index_path.replace("faiss_index", "chunks_metadata.pkl")
     with open(metadata_path, "wb") as f:
         pickle.dump(chunks, f)
-    print(f"💾 Metadata guardada en: {metadata_path}")
+    logger.info(f"Metadata guardada")
 
 
 def load_index(index_path: str = INDEX_PATH, embeddings: Optional[HuggingFaceEmbeddings] = None) -> FAISS:
@@ -190,13 +238,13 @@ def load_index(index_path: str = INDEX_PATH, embeddings: Optional[HuggingFaceEmb
     if embeddings is None:
         embeddings = generate_embeddings()
 
-    print(f"🔄 Cargando índice FAISS desde: {index_path}")
+    logger.info("Cargando índice FAISS desde disco")
     db = FAISS.load_local(
         index_path,
         embeddings,
         allow_dangerous_deserialization=True
     )
-    print(f"✅ Índice FAISS cargado exitosamente")
+    logger.info("Índice FAISS cargado exitosamente")
     return db
 
 
@@ -220,7 +268,8 @@ def retrieve_relevant_chunks(
     if not query or not query.strip():
         raise ValueError("La query no puede estar vacía")
 
-    print(f"🔍 Buscando {k} chunks relevantes para: '{query[:50]}...'")
+    # PRIVACIDAD: No logear la query del usuario
+    logger.debug(f"Buscando {k} chunks relevantes")
 
     # similarity_search_with_score devuelve (Document, score)
     docs_and_scores = db.similarity_search_with_score(query, k=k)
@@ -228,7 +277,7 @@ def retrieve_relevant_chunks(
     # Extraer contenido y scores
     results = [(doc.page_content, score) for doc, score in docs_and_scores]
 
-    print(f"✅ Encontrados {len(results)} chunks relevantes")
+    logger.debug(f"Encontrados {len(results)} chunks")
     return results
 
 
@@ -264,14 +313,13 @@ def ingest_pdf_to_index(
     # Solo intentar cargar índice si persist=True y existe
     if persist and os.path.exists(index_path) and not force_rebuild:
         try:
-            print("📂 Índice existente encontrado, cargando...")
+            logger.info("Índice existente encontrado, cargando...")
             return load_index(index_path, embeddings)
         except Exception as e:
-            print(f"⚠️ Error cargando índice existente: {e}")
-            print("🔄 Reconstruyendo índice desde cero...")
+            logger.warning(f"Error cargando índice: reconstruyendo")
 
     # Pipeline completo: leer → chunkear → indexar
-    print("🚀 Iniciando pipeline de ingesta...")
+    logger.info("Iniciando pipeline de ingesta")
     text = read_pdf(pdf_path)
     chunks = split_into_chunks(text, chunk_size, chunk_overlap)
     db = build_faiss_index(chunks, embeddings)
@@ -279,11 +327,44 @@ def ingest_pdf_to_index(
     # Solo guardar en disco si persist=True
     if persist:
         save_index(db, chunks, index_path)
-        print("💾 Índice guardado en disco")
+        logger.info("Índice guardado en disco")
     else:
-        print("✅ Índice creado en memoria (no persistido)")
+        logger.info("Índice creado en memoria (no persistido)")
 
-    print("🎉 Pipeline completado exitosamente")
+    logger.info("Pipeline completado exitosamente")
+    return db
+
+
+def ingest_pdf_from_buffer(
+    pdf_buffer: BytesIO,
+    model_name: str = DEFAULT_MODEL_NAME,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP
+) -> FAISS:
+    """
+    Pipeline completo desde buffer en memoria: lee PDF, chunking, embeddings, indexado FAISS.
+
+    PRIVACIDAD: No guarda NADA en disco. Todo el procesamiento es en memoria.
+    Ideal para deploy en producción donde la privacidad es crítica.
+
+    Args:
+        pdf_buffer: Buffer de bytes con el contenido del PDF
+        model_name: Modelo de embeddings a usar
+        chunk_size: Tamaño de cada chunk
+        chunk_overlap: Solapamiento entre chunks
+
+    Returns:
+        Índice FAISS en memoria (no persistido)
+    """
+    embeddings = generate_embeddings(model_name)
+
+    # Pipeline completo en memoria: leer → chunkear → indexar
+    logger.info("Procesando PDF desde memoria")
+    text = read_pdf_from_buffer(pdf_buffer)
+    chunks = split_into_chunks(text, chunk_size, chunk_overlap)
+    db = build_faiss_index(chunks, embeddings)
+
+    logger.info("Pipeline completado en memoria (100% privado)")
     return db
 
 

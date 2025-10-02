@@ -4,14 +4,16 @@ Aplicación para conversar con documentos PDF usando RAG + Mistral AI
 """
 
 import os
+import gc
 from typing import List, Tuple, Optional
+from io import BytesIO
 
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_mistralai import ChatMistralAI
 
 from src.rag_engine import (
-    ingest_pdf_to_index,
+    ingest_pdf_from_buffer,
     similarity_search,
     DEFAULT_MODEL_NAME
 )
@@ -170,6 +172,16 @@ def main():
 
     st.markdown("---")
 
+    # Banner de privacidad
+    st.info("""
+    🔒 **Tu privacidad es nuestra prioridad:**
+
+    ✅ Tu PDF se procesa **solo en memoria** (nunca se guarda en disco)
+    ✅ Los embeddings se generan **localmente** (no se envían a servidores externos)
+    ⚠️ Para generar respuestas inteligentes, fragmentos relevantes se envían a Mistral AI
+    ℹ️ Los datos se eliminan automáticamente al cerrar la sesión
+    """, icon="🔒")
+
     # Sidebar - Configuración
     with st.sidebar:
         st.markdown("### ⚙️ Configuración")
@@ -208,10 +220,16 @@ def main():
         st.markdown("---")
 
         # Botón para limpiar sesión
-        if st.button("🗑️ Limpiar sesión", help="Elimina el documento actual y reinicia la sesión"):
+        if st.button("🗑️ Limpiar sesión", help="Elimina el documento actual y libera la memoria"):
+            # Eliminar referencias
             st.session_state.faiss_db = None
             st.session_state.uploaded_filename = None
-            st.success("✅ Sesión reiniciada")
+            st.session_state.session_id = None
+
+            # Forzar garbage collection para liberar memoria
+            gc.collect()
+
+            st.success("✅ Sesión y memoria limpiadas")
             st.rerun()
 
         st.markdown("---")
@@ -271,34 +289,20 @@ def main():
     if uploaded_file is not None:
         # Si es un archivo nuevo, recrear el índice
         if st.session_state.uploaded_filename != uploaded_file.name:
-            # Guardar PDF temporalmente con nombre único por sesión
-            import uuid
-            session_id = st.session_state.get("session_id", str(uuid.uuid4()))
-            st.session_state.session_id = session_id
+            # PRIVACIDAD: Procesar PDF directamente desde memoria (BytesIO)
+            # No se guarda NADA en disco
+            pdf_buffer = BytesIO(uploaded_file.getvalue())
 
-            pdf_path = os.path.join("data", f"{session_id}_{uploaded_file.name}")
-            os.makedirs("data", exist_ok=True)
-
-            with open(pdf_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            # Ingerir PDF al índice EN MEMORIA (persist=False para evitar compartir datos)
-            with st.spinner("🔄 Procesando tu documento..."):
+            # Ingerir PDF al índice EN MEMORIA (100% privado)
+            with st.spinner("🔄 Procesando tu documento en memoria..."):
                 try:
-                    db = ingest_pdf_to_index(
-                        pdf_path,
-                        model_name=embeddings_model,
-                        persist=False  # CRÍTICO: No persistir para aislar usuarios
+                    db = ingest_pdf_from_buffer(
+                        pdf_buffer,
+                        model_name=embeddings_model
                     )
                     st.session_state.faiss_db = db
                     st.session_state.uploaded_filename = uploaded_file.name
-                    st.success(f"✅ **{uploaded_file.name}** listo para consultas")
-
-                    # Limpiar archivo temporal
-                    try:
-                        os.remove(pdf_path)
-                    except:
-                        pass
+                    st.success(f"✅ **{uploaded_file.name}** procesado de forma segura (solo en memoria)")
                 except Exception as e:
                     st.error(f"❌ Error procesando PDF: {e}")
                     return
@@ -401,9 +405,27 @@ def main():
                 st.text(chunk)
                 st.markdown("---")
 
-    # Footer mejorado
+    # Footer mejorado con mensaje de privacidad
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
+
+    # Mensaje de privacidad destacado
+    st.markdown(
+        """
+        <div style='text-align: center; padding: 1rem; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 1rem;'>
+            <p style='color: #1f1f1f; font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;'>
+                🔒 Tu privacidad es importante
+            </p>
+            <p style='color: #666; font-size: 0.8rem; margin: 0; line-height: 1.5;'>
+                <strong>PaperWhisper procesa tus documentos solo en memoria.</strong><br>
+                No guardamos archivos en disco ni usamos tus datos para entrenar modelos.<br>
+                Fragmentos relevantes se envían a Mistral AI únicamente para generar respuestas.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.markdown(
         """
         <div style='text-align: center; padding: 0.5rem 0;'>
@@ -414,8 +436,8 @@ def main():
                 <a href='https://github.com/antuansabe/PaperWhisper' target='_blank' style='color: #FF4B4B; text-decoration: none;'>
                     ⭐ GitHub
                 </a> •
-                <a href='./QUICKSTART.md' style='color: #FF4B4B; text-decoration: none;'>
-                    📖 Docs
+                <a href='https://github.com/antuansabe/PaperWhisper/blob/main/PRIVACY.md' target='_blank' style='color: #FF4B4B; text-decoration: none;'>
+                    🔒 Privacidad
                 </a>
             </p>
         </div>
