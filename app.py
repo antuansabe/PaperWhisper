@@ -11,6 +11,7 @@ from io import BytesIO
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_mistralai import ChatMistralAI
+from pypdf import PdfReader
 
 from src.rag_engine import (
     ingest_pdf_from_buffer,
@@ -228,7 +229,7 @@ def main():
     # Header con logo
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("ppaper.png", use_container_width=True)
+        st.image("ppaper.png", width="stretch")
 
     st.markdown("---")
 
@@ -384,9 +385,6 @@ def main():
         with st.expander("👁️ Ver vista previa del documento", expanded=False):
             try:
                 # Leer directamente del uploaded_file buffer
-                from io import BytesIO
-                from pypdf import PdfReader
-
                 pdf_bytes = BytesIO(uploaded_file.getvalue())
                 reader = PdfReader(pdf_bytes)
                 preview_text = ""
