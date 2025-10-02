@@ -272,7 +272,7 @@ Distribuido bajo la Licencia MIT. Ver `LICENSE` para más información.
 **Antonio Sabe**
 
 - GitHub: [@antuansabe](https://github.com/antuansabe)
-- LinkedIn: [Agregar tu LinkedIn aquí]
+- LinkedIn: [Antonio Sabe](https://www.linkedin.com/in/antonndromundo/)
 
 ---
 
