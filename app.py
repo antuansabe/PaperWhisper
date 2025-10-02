@@ -33,7 +33,7 @@ st.set_page_config(
 @st.cache_resource(show_spinner=False)
 def get_mistral_llm(model: str = "mistral-small-latest") -> Optional[ChatMistralAI]:
     """
-    Inicializa el modelo de Mistral AI.
+    Inicializa el modelo de Mistral AI con parámetros optimizados para precisión.
     Se cachea para evitar reinicializaciones.
 
     Args:
@@ -50,8 +50,9 @@ def get_mistral_llm(model: str = "mistral-small-latest") -> Optional[ChatMistral
     try:
         return ChatMistralAI(
             model=model,
-            temperature=0,  # Respuestas determinísticas
-            max_tokens=1024,  # Límite de tokens en respuesta
+            temperature=0.1,  # Muy bajo para respuestas precisas pero con algo de flexibilidad
+            max_tokens=1500,  # Incrementado para respuestas más completas
+            top_p=0.9,  # Nucleus sampling para mejor calidad
         )
     except Exception as e:
         st.error(f"❌ Error inicializando Mistral: {e}")
@@ -61,10 +62,17 @@ def get_mistral_llm(model: str = "mistral-small-latest") -> Optional[ChatMistral
 def generate_answer_with_mistral(
     llm: ChatMistralAI,
     query: str,
-    context_chunks: List[Tuple[str, float]]
+    context_chunks: List[Tuple[str, float]],
+    detail_level: str = "Balanceado"
 ) -> str:
     """
     Genera una respuesta usando Mistral AI con el contexto recuperado.
+
+    MEJORAS DE PRECISIÓN:
+    - Re-ranking de chunks por score de relevancia
+    - Prompt mejorado con ejemplos (few-shot learning)
+    - Metadata de relevancia en cada fragmento
+    - Instrucciones específicas para respuestas estructuradas
 
     Args:
         llm: Instancia de ChatMistralAI
@@ -74,26 +82,66 @@ def generate_answer_with_mistral(
     Returns:
         Respuesta generada por el LLM
     """
-    # Construir contexto a partir de los chunks
-    context = "\n\n---\n\n".join([chunk for chunk, _ in context_chunks])
+    # Re-ranking: ordenar chunks por score (menor score = mayor relevancia)
+    sorted_chunks = sorted(context_chunks, key=lambda x: x[1])
 
-    # Prompt optimizado para RAG
-    system_prompt = """Eres un asistente experto que responde preguntas basándote ÚNICAMENTE en el contexto proporcionado.
+    # Construir contexto con metadata de relevancia
+    context_parts = []
+    for i, (chunk, score) in enumerate(sorted_chunks, start=1):
+        relevance_pct = (1 - score) * 100  # Convertir distancia a %
+        context_parts.append(
+            f"[Fragmento {i} - Relevancia: {relevance_pct:.1f}%]\n{chunk}"
+        )
 
-Reglas importantes:
+    context = "\n\n---\n\n".join(context_parts)
+
+    # Ajustar instrucciones según nivel de detalle
+    detail_instructions = {
+        "Conciso": "Sé MUY breve y directo. Responde en 1-2 oraciones máximo, solo lo esencial.",
+        "Balanceado": "Proporciona una respuesta completa pero concisa. Incluye detalles importantes sin extenderte demasiado.",
+        "Detallado": "Proporciona una respuesta exhaustiva y detallada. Incluye todos los matices, ejemplos y contexto relevante."
+    }
+
+    # Prompt optimizado con few-shot learning y estructura mejorada
+    system_prompt = f"""Eres un asistente experto especializado en análisis de documentos. Tu trabajo es responder preguntas basándote ÚNICAMENTE en el contexto proporcionado.
+
+NIVEL DE DETALLE SOLICITADO: {detail_level}
+{detail_instructions[detail_level]}
+
+INSTRUCCIONES CRÍTICAS:
 1. Responde SOLO con información presente en el contexto
 2. Si la respuesta no está en el contexto, di: "No encuentro esa información en el documento"
-3. Sé preciso y conciso
-4. Cita fragmentos relevantes cuando sea útil
-5. Si hay información parcial, indícalo claramente"""
+3. Usa un formato estructurado y claro
+4. Cita los fragmentos relevantes usando [Fragmento X]
+5. Si la información está incompleta o es ambigua, indícalo explícitamente
+6. Prioriza los fragmentos con mayor relevancia (mayor porcentaje)
+7. Sé preciso, conciso y objetivo
 
-    user_prompt = f"""Contexto del documento:
+FORMATO DE RESPUESTA:
+- Comienza con una respuesta directa
+- Luego, proporciona detalles si es necesario
+- Cita las fuentes entre corchetes: [Fragmento X]
+- Si hay información complementaria, agrégala al final
+
+EJEMPLOS:
+
+Pregunta: "¿Cuál es el tema principal del documento?"
+Respuesta: "El tema principal es [respuesta directa]. [Fragmento 1] menciona que [detalle]. Adicionalmente, [Fragmento 2] complementa indicando que [detalle adicional]."
+
+Pregunta: "¿Quién es el autor?"
+Respuesta (si no hay info): "No encuentro información sobre el autor en el documento proporcionado."
+
+Pregunta: "¿Cuándo se publicó?"
+Respuesta (info parcial): "El documento menciona el año 2023 [Fragmento 1], pero no especifica el mes o día exacto de publicación."""
+
+    user_prompt = f"""**Contexto del documento:**
+
 {context}
 
-Pregunta del usuario:
+**Pregunta del usuario:**
 {query}
 
-Respuesta:"""
+**Tu respuesta (siguiendo el formato estructurado):**"""
 
     # Invocar Mistral
     messages = [
@@ -225,8 +273,16 @@ def main():
                 "Fragmentos a recuperar",
                 min_value=1,
                 max_value=10,
-                value=4,
-                help="Número de fragmentos relevantes del documento"
+                value=5,
+                help="Número de fragmentos relevantes del documento (más fragmentos = más contexto pero puede incluir info menos relevante)"
+            )
+
+            # Nivel de detalle en respuestas
+            detail_level = st.select_slider(
+                "Nivel de detalle",
+                options=["Conciso", "Balanceado", "Detallado"],
+                value="Balanceado",
+                help="Controla qué tan elaboradas son las respuestas"
             )
 
         st.markdown("---")
@@ -396,7 +452,7 @@ def main():
 
             with st.spinner("🤖 Generando respuesta..."):
                 try:
-                    answer = generate_answer_with_mistral(llm, query, results)
+                    answer = generate_answer_with_mistral(llm, query, results, detail_level)
 
                     # Mostrar respuesta en un contenedor destacado
                     st.markdown(f"""
