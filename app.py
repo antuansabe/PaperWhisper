@@ -29,19 +29,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Google Analytics
-st.components.v1.html("""
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-9MQTPC9RJK"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-9MQTPC9RJK');
-</script>
-""", height=0)
-
 
 @st.cache_resource(show_spinner=False)
 def get_mistral_llm(model: str = "mistral-small-latest") -> Optional[ChatMistralAI]:
@@ -124,6 +111,18 @@ Respuesta:"""
 def main():
     """Función principal de la aplicación Streamlit"""
 
+    # Google Analytics (movido aquí para evitar interferencia con renderizado)
+    st.components.v1.html("""
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9MQTPC9RJK"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-9MQTPC9RJK');
+    </script>
+    """, height=0)
+
     # CSS para optimización móvil
     st.markdown("""
         <style>
@@ -185,15 +184,15 @@ def main():
 
     st.markdown("---")
 
-    # Banner de privacidad
-    st.info("""
-    🔒 **Tu privacidad es nuestra prioridad:**
-
-    ✅ Tu PDF se procesa **solo en memoria** (nunca se guarda en disco)
-    ✅ Los embeddings se generan **localmente** (no se envían a servidores externos)
-    ⚠️ Para generar respuestas inteligentes, fragmentos relevantes se envían a Mistral AI
-    ℹ️ Los datos se eliminan automáticamente al cerrar la sesión
-    """, icon="🔒")
+    # Mensaje de privacidad simple
+    st.markdown(
+        """
+        <p style='text-align: center; color: #666; font-size: 0.9rem; margin: 0.5rem 0 1rem 0;'>
+            🔒 Tus documentos se procesan <strong>solo en memoria</strong> — No guardamos archivos
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
     # Sidebar - Configuración
     with st.sidebar:
