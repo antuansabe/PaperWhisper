@@ -111,12 +111,65 @@ Respuesta:"""
 def main():
     """Función principal de la aplicación Streamlit"""
 
+    # CSS para optimización móvil
+    st.markdown("""
+        <style>
+        /* Optimización móvil */
+        @media (max-width: 768px) {
+            /* Reducir padding general */
+            .main .block-container {
+                padding-top: 1rem !important;
+                padding-bottom: 1rem !important;
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+
+            /* Reducir espacios entre secciones */
+            .element-container {
+                margin-bottom: 0.5rem !important;
+            }
+
+            /* Títulos más compactos */
+            h1, h2, h3 {
+                margin-top: 0.5rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+
+            /* File uploader más compacto */
+            [data-testid="stFileUploader"] {
+                padding: 0.5rem !important;
+            }
+
+            /* Botones full width en móvil */
+            .stButton button {
+                width: 100% !important;
+            }
+
+            /* Text areas más compactas */
+            .stTextArea textarea {
+                min-height: 80px !important;
+            }
+
+            /* Expanders más compactos */
+            .streamlit-expanderHeader {
+                font-size: 0.9rem !important;
+            }
+        }
+
+        /* Logo responsive */
+        @media (max-width: 768px) {
+            img {
+                max-width: 100% !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     # Header con logo
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image("ppaper.png", use_container_width=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
     # Sidebar - Configuración
@@ -205,7 +258,7 @@ def main():
             """)
 
     # Main content con diseño mejorado
-    st.markdown("### 📤 Paso 1: Sube tu documento")
+    st.markdown('<h3 style="margin-bottom: 0.5rem;">📤 Paso 1: Sube tu documento</h3>', unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
         "Arrastra un PDF aquí o haz clic para seleccionar",
@@ -249,10 +302,8 @@ def main():
             except Exception as e:
                 st.warning(f"⚠️ No se pudo generar vista previa: {e}")
 
-        st.markdown("---")
-
     # Sección de consulta con mejor diseño
-    st.markdown("### 💬 Paso 2: Haz tu pregunta")
+    st.markdown('<h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">💬 Paso 2: Haz tu pregunta</h3>', unsafe_allow_html=True)
 
     query = st.text_input(
         "Pregunta",
@@ -313,15 +364,15 @@ def main():
                 st.markdown("---")
 
     # Footer mejorado
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown(
         """
-        <div style='text-align: center; padding: 1rem 0;'>
-            <p style='color: #666; font-size: 0.9rem;'>
+        <div style='text-align: center; padding: 0.5rem 0;'>
+            <p style='color: #666; font-size: 0.85rem; margin-bottom: 0.3rem;'>
                 Hecho con ❤️ usando <strong>Mistral AI</strong>, <strong>LangChain</strong> y <strong>FAISS</strong>
             </p>
-            <p style='color: #999; font-size: 0.8rem; margin-top: 0.5rem;'>
+            <p style='color: #999; font-size: 0.75rem; margin: 0;'>
                 <a href='https://github.com/antuansabe/PaperWhisper' target='_blank' style='color: #FF4B4B; text-decoration: none;'>
                     ⭐ GitHub
                 </a> •
