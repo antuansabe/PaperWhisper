@@ -29,6 +29,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Google Analytics
+st.components.v1.html("""
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-9MQTPC9RJK"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-9MQTPC9RJK');
+</script>
+""", height=0)
+
 
 @st.cache_resource(show_spinner=False)
 def get_mistral_llm(model: str = "mistral-small-latest") -> Optional[ChatMistralAI]:
